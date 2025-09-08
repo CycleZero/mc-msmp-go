@@ -30,35 +30,55 @@ type MsmpResponse interface {
 	IsSuccess() bool
 	GetID() int
 	GetJSONRPC() string
+	GetResult() interface{}
+	GetError() *MsmpResponseError
 }
 
 // IsSuccess 判断响应是否为成功响应
-func (resp MsmpResponseSuccess) IsSuccess() bool {
+func (resp *MsmpResponseSuccess) IsSuccess() bool {
 	return true
 }
 
 // GetID 获取请求ID
-func (resp MsmpResponseSuccess) GetID() int {
+func (resp *MsmpResponseSuccess) GetID() int {
 	return resp.ID
 }
 
 // GetJSONRPC 获取JSON-RPC版本
-func (resp MsmpResponseSuccess) GetJSONRPC() string {
+func (resp *MsmpResponseSuccess) GetJSONRPC() string {
 	return resp.JSONRPC
 }
 
+// GetResult 获取响应结果
+func (resp *MsmpResponseSuccess) GetResult() interface{} {
+	return &resp.Result
+}
+
+func (resp *MsmpResponseSuccess) GetError() *MsmpResponseError {
+	return nil
+}
+
+// GetError 获取错误信息
+func (resp *MsmpResponseFailure) GetError() *MsmpResponseError {
+	return &resp.Error
+}
+
+func (resp *MsmpResponseFailure) GetResult() interface{} {
+	return &resp.Error
+}
+
 // IsSuccess 判断响应是否为成功响应
-func (resp MsmpResponseFailure) IsSuccess() bool {
+func (resp *MsmpResponseFailure) IsSuccess() bool {
 	return false
 }
 
 // GetID 获取请求ID
-func (resp MsmpResponseFailure) GetID() int {
+func (resp *MsmpResponseFailure) GetID() int {
 	return resp.ID
 }
 
 // GetJSONRPC 获取JSON-RPC版本
-func (resp MsmpResponseFailure) GetJSONRPC() string {
+func (resp *MsmpResponseFailure) GetJSONRPC() string {
 	return resp.JSONRPC
 }
 
@@ -79,7 +99,7 @@ func ParseResponse(data []byte) (MsmpResponse, error) {
 	// 根据是否存在error字段判断是成功还是失败响应
 	if temp.Error != nil {
 		// 失败响应
-		failure := MsmpResponseFailure{
+		failure := &MsmpResponseFailure{
 			JSONRPC: temp.JSONRPC,
 			ID:      temp.ID,
 		}
@@ -91,7 +111,7 @@ func ParseResponse(data []byte) (MsmpResponse, error) {
 		return failure, nil
 	} else {
 		// 成功响应
-		success := MsmpResponseSuccess{
+		success := &MsmpResponseSuccess{
 			JSONRPC: temp.JSONRPC,
 			ID:      temp.ID,
 		}

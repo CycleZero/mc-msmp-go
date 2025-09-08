@@ -3,7 +3,10 @@ package client
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/CycleZero/mc-msmp-go/container"
 	"github.com/CycleZero/mc-msmp-go/dto"
+	"github.com/CycleZero/mc-msmp-go/handler"
+	"github.com/CycleZero/mc-msmp-go/iface"
 	"github.com/gorilla/websocket"
 	"log"
 	"sync"
@@ -40,10 +43,12 @@ type MsmpClient struct {
 	requestID int
 
 	// 等待响应的请求映射
-	pendingRequests map[int]chan dto.MsmpResponse
+	container iface.MessageContainer
 
 	// 退出信号
 	done chan struct{}
+
+	Handler func(*dto.MsmpRequest, dto.MsmpResponse)
 }
 
 // NewMsmpClient 创建新的MsmpWebSocket客户端实例
@@ -54,8 +59,9 @@ func NewMsmpClient(url string) *MsmpClient {
 		autoReconnect:     true,
 		reconnectInterval: 5 * time.Second,
 		requestID:         0,
-		pendingRequests:   make(map[int]chan dto.MsmpResponse),
+		container:         container.NewMapMessageContainer(),
 		done:              make(chan struct{}),
+		Handler:           handler.DefaultHandler,
 	}
 }
 
@@ -152,19 +158,11 @@ func (c *MsmpClient) readMessages() {
 			}
 
 			// 检查是否有等待此响应的请求
-			c.mutex.Lock()
-			if ch, exists := c.pendingRequests[response.GetID()]; exists {
-				// 发送到等待的通道
-				ch <- response
-				// 删除已处理的请求
-				delete(c.pendingRequests, response.GetID())
-			} else {
-				// 调用全局消息处理函数
-				if c.messageHandler != nil {
-					c.messageHandler(response)
-				}
+			err = c.container.AddResponse(response)
+			if err != nil {
+				log.Printf("Error adding response: %v", err)
+				continue
 			}
-			c.mutex.Unlock()
 		}
 	}
 }
@@ -196,20 +194,16 @@ func (c *MsmpClient) reconnect() {
 }
 
 // SendRequest 发送请求并等待响应
-func (c *MsmpClient) SendRequest(method string, params interface{}) (dto.MsmpResponse, error) {
+func (c *MsmpClient) SendRequest(method string, params interface{}) error {
 	c.mutex.Lock()
 	if !c.connected {
 		c.mutex.Unlock()
-		return nil, fmt.Errorf("not connected to server")
+		return fmt.Errorf("not connected to server")
 	}
 
 	// 增加请求ID
 	c.requestID++
 	id := c.requestID
-
-	// 创建等待响应的通道
-	responseChan := make(chan dto.MsmpResponse, 1)
-	c.pendingRequests[id] = responseChan
 
 	// 构造请求
 	request := dto.NewMsmpRequest(id, method, params)
@@ -218,32 +212,60 @@ func (c *MsmpClient) SendRequest(method string, params interface{}) (dto.MsmpRes
 	// 发送请求
 	data, err := json.Marshal(request)
 	if err != nil {
-		c.mutex.Lock()
-		delete(c.pendingRequests, id)
-		c.mutex.Unlock()
-		return nil, fmt.Errorf("failed to marshal request: %v", err)
+		return fmt.Errorf("failed to marshal request: %v", err)
 	}
-
+	err = c.container.AddRequest(&request)
+	if err != nil {
+		return err
+	}
 	err = c.conn.WriteMessage(websocket.TextMessage, data)
 	if err != nil {
-		c.mutex.Lock()
-		delete(c.pendingRequests, id)
-		c.mutex.Unlock()
-		return nil, fmt.Errorf("failed to send request: %v", err)
+		err := c.container.CancelRequest(id)
+		if err != nil {
+			return err
+		}
+		return fmt.Errorf("failed to send request: %v", err)
 	}
 
-	// 等待响应或超时
-	select {
-	case response := <-responseChan:
-		return response, nil
-	case <-time.After(30 * time.Second):
-		c.mutex.Lock()
-		delete(c.pendingRequests, id)
+	return nil
+
+}
+
+func (c *MsmpClient) SendRequestWithCallback(method string, params interface{}, callback func(*dto.MsmpRequest, dto.MsmpResponse)) error {
+	c.mutex.Lock()
+	if !c.connected {
 		c.mutex.Unlock()
-		return nil, fmt.Errorf("request timeout")
-	case <-c.done:
-		return nil, fmt.Errorf("client disconnected")
+		return fmt.Errorf("not connected to server")
 	}
+
+	// 增加请求ID
+	c.requestID++
+	id := c.requestID
+
+	// 构造请求
+	request := dto.NewMsmpRequest(id, method, params)
+	c.mutex.Unlock()
+
+	// 发送请求
+	data, err := json.Marshal(request)
+	if err != nil {
+		return fmt.Errorf("failed to marshal request: %v", err)
+	}
+	err = c.container.AddRequestWithCallback(&request, callback)
+	if err != nil {
+		return err
+	}
+	err = c.conn.WriteMessage(websocket.TextMessage, data)
+	if err != nil {
+		err := c.container.CancelRequest(id)
+		if err != nil {
+			return err
+		}
+		return fmt.Errorf("failed to send request: %v", err)
+	}
+
+	return nil
+
 }
 
 // SendNotification 发送通知（不需要响应）
