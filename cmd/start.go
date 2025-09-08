@@ -1,6 +1,9 @@
 package cmd
 
-import "github.com/CycleZero/mc-msmp-go/client"
+import (
+	"github.com/CycleZero/mc-msmp-go/client"
+	"log"
+)
 
 func Start() {
 
@@ -9,6 +12,7 @@ func Start() {
 	cli := client.NewMsmpClient(url)
 	err := cli.Connect()
 	if err != nil {
+		log.Println(err)
 		return
 	}
 	defer func(cli *client.MsmpClient) {
@@ -19,5 +23,5 @@ func Start() {
 	}(cli)
 
 	cli.AllowlistSet("8484", "wdwd")
-
+	log.Println("===========end===========")
 }
