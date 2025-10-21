@@ -15,6 +15,9 @@ import (
 )
 
 type NewClientConfig struct {
+	handler       func(*dto.MsmpRequest, dto.MsmpResponse)
+	container     iface.MessageContainer
+	AutoReconnect bool
 }
 
 // MsmpClient WebSocket客户端结构
@@ -57,16 +60,31 @@ type MsmpClient struct {
 }
 
 // NewMsmpClient 创建新的MsmpWebSocket客户端实例
-func NewMsmpClient(url, secret string) *MsmpClient {
+func NewMsmpClient(url, secret string, config *NewClientConfig) *MsmpClient {
+	c := &NewClientConfig{
+		handler:       handler.DefaultHandler,
+		container:     container.NewMapMessageContainer(),
+		AutoReconnect: true,
+	}
+	if config != nil {
+		if config.handler != nil {
+			c.handler = config.handler
+		}
+		if config.container != nil {
+			c.container = config.container
+		}
+		c.AutoReconnect = config.AutoReconnect
+	}
+
 	return &MsmpClient{
 		url:               url,
 		connected:         false,
-		autoReconnect:     true,
+		autoReconnect:     c.AutoReconnect,
 		reconnectInterval: 5 * time.Second,
 		requestID:         0,
-		container:         container.NewMapMessageContainer(),
+		container:         c.container,
 		done:              make(chan struct{}),
-		Handler:           handler.DefaultHandler,
+		Handler:           c.handler,
 		AuthSecret:        secret,
 	}
 }
