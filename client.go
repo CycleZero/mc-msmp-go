@@ -14,6 +14,9 @@ import (
 	"time"
 )
 
+type NewClientConfig struct {
+}
+
 // MsmpClient WebSocket客户端结构
 type MsmpClient struct {
 	// WebSocket连接
