@@ -15,5 +15,8 @@ type MessagePair struct {
 }
 
 func NewMsmpRequest(id int, method string, param interface{}) MsmpRequest {
+	if param == nil {
+		return MsmpRequest{JSONRPC: "2.0", ID: id, Method: method}
+	}
 	return MsmpRequest{JSONRPC: "2.0", ID: id, Method: method, Params: []interface{}{param}}
 }

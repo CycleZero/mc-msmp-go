@@ -1,4 +1,4 @@
-package client
+package mcmsmpgo
 
 func (c *MsmpClient) ServerStatus() {
 	err := c.SendRequest("minecraft:server/status", nil)

@@ -2,6 +2,7 @@
   <dictionary name="project">
     <words>
       <w>gamerules</w>
+      <w>jsonrpc</w>
       <w>msmp</w>
     </words>
   </dictionary>

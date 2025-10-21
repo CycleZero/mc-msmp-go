@@ -1,4 +1,4 @@
-package client
+package mcmsmpgo
 
 import "github.com/CycleZero/mc-msmp-go/dto/subdto"
 

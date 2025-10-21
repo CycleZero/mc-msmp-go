@@ -1,4 +1,4 @@
-package client
+package mcmsmpgo
 
 import (
 	"encoding/json"
@@ -9,6 +9,7 @@ import (
 	"github.com/CycleZero/mc-msmp-go/iface"
 	"github.com/gorilla/websocket"
 	"log"
+	"net/http"
 	"sync"
 	"time"
 )
@@ -48,11 +49,12 @@ type MsmpClient struct {
 	// 退出信号
 	done chan struct{}
 
-	Handler func(*dto.MsmpRequest, dto.MsmpResponse)
+	Handler    func(*dto.MsmpRequest, dto.MsmpResponse)
+	AuthSecret string
 }
 
 // NewMsmpClient 创建新的MsmpWebSocket客户端实例
-func NewMsmpClient(url string) *MsmpClient {
+func NewMsmpClient(url, secret string) *MsmpClient {
 	return &MsmpClient{
 		url:               url,
 		connected:         false,
@@ -62,6 +64,7 @@ func NewMsmpClient(url string) *MsmpClient {
 		container:         container.NewMapMessageContainer(),
 		done:              make(chan struct{}),
 		Handler:           handler.DefaultHandler,
+		AuthSecret:        secret,
 	}
 }
 
@@ -89,12 +92,13 @@ func (c *MsmpClient) SetReconnectInterval(interval time.Duration) {
 func (c *MsmpClient) Connect() error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-
+	headers := http.Header{}
+	headers.Add("Authorization", "Bearer "+c.AuthSecret)
 	if c.connected {
 		return fmt.Errorf("client already connected")
 	}
 
-	conn, _, err := websocket.DefaultDialer.Dial(c.url, nil)
+	conn, _, err := websocket.DefaultDialer.Dial(c.url, headers)
 	if err != nil {
 		return fmt.Errorf("failed to connect to server: %v", err)
 	}
@@ -140,6 +144,7 @@ func (c *MsmpClient) readMessages() {
 
 			_, message, err := c.conn.ReadMessage()
 			if err != nil {
+				fmt.Println("Error reading message: %v", err)
 				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 					log.Printf("Error reading message: %v", err)
 				}
@@ -149,7 +154,7 @@ func (c *MsmpClient) readMessages() {
 				c.mutex.Unlock()
 				return
 			}
-
+			fmt.Println("Received message:", string(message))
 			// 解析响应
 			response, err := dto.ParseResponse(message)
 			if err != nil {
@@ -214,6 +219,7 @@ func (c *MsmpClient) SendRequest(method string, params interface{}) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal request: %v", err)
 	}
+	fmt.Println("Send Request:" + string(data))
 	err = c.container.AddRequest(&request)
 	if err != nil {
 		return err
