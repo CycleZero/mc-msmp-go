@@ -15,8 +15,8 @@ import (
 )
 
 type NewClientConfig struct {
-	handler       func(*dto.MsmpRequest, dto.MsmpResponse)
-	container     iface.MessageContainer
+	Handler       func(*dto.MsmpRequest, dto.MsmpResponse)
+	Container     iface.MessageContainer
 	AutoReconnect bool
 }
 
@@ -62,16 +62,16 @@ type MsmpClient struct {
 // NewMsmpClient 创建新的MsmpWebSocket客户端实例
 func NewMsmpClient(url, secret string, config *NewClientConfig) *MsmpClient {
 	c := &NewClientConfig{
-		handler:       handler.DefaultHandler,
-		container:     container.NewMapMessageContainer(),
+		Handler:       handler.DefaultHandler,
+		Container:     container.NewMapMessageContainer(),
 		AutoReconnect: true,
 	}
 	if config != nil {
-		if config.handler != nil {
-			c.handler = config.handler
+		if config.Handler != nil {
+			c.Handler = config.Handler
 		}
-		if config.container != nil {
-			c.container = config.container
+		if config.Container != nil {
+			c.Container = config.Container
 		}
 		c.AutoReconnect = config.AutoReconnect
 	}
@@ -82,9 +82,9 @@ func NewMsmpClient(url, secret string, config *NewClientConfig) *MsmpClient {
 		autoReconnect:     c.AutoReconnect,
 		reconnectInterval: 5 * time.Second,
 		requestID:         0,
-		container:         c.container,
+		container:         c.Container,
 		done:              make(chan struct{}),
-		Handler:           c.handler,
+		Handler:           c.Handler,
 		AuthSecret:        secret,
 	}
 }
