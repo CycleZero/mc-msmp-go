@@ -23,7 +23,7 @@ type NewClientConfig struct {
 // MsmpClient WebSocket客户端结构
 type MsmpClient struct {
 	// WebSocket连接
-	conn *websocket.Conn
+	Conn *websocket.Conn
 
 	// 服务器地址
 	url string
@@ -124,7 +124,7 @@ func (c *MsmpClient) Connect() error {
 		return fmt.Errorf("failed to connect to server: %v", err)
 	}
 
-	c.conn = conn
+	c.Conn = conn
 	c.connected = true
 
 	// 启动读取消息的goroutine
@@ -150,7 +150,7 @@ func (c *MsmpClient) Disconnect() error {
 
 	close(c.done)
 	c.connected = false
-	return c.conn.Close()
+	return c.Conn.Close()
 }
 
 // readMessages 读取来自服务器的消息
@@ -161,9 +161,9 @@ func (c *MsmpClient) readMessages() {
 			return
 		default:
 			// 设置读取超时
-			c.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+			c.Conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 
-			_, message, err := c.conn.ReadMessage()
+			_, message, err := c.Conn.ReadMessage()
 			if err != nil {
 				fmt.Println("Error reading message: %v", err)
 				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
@@ -175,7 +175,7 @@ func (c *MsmpClient) readMessages() {
 				c.mutex.Unlock()
 				return
 			}
-			fmt.Println("Received message:", string(message))
+			//fmt.Println("Received message:", string(message))
 			// 解析响应
 			response, err := dto.ParseResponse(message)
 			if err != nil {
@@ -240,12 +240,14 @@ func (c *MsmpClient) SendRequest(method string, params interface{}) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal request: %v", err)
 	}
-	fmt.Println("Send Request:" + string(data))
-	err = c.container.AddRequest(&request)
+	//fmt.Println("Send Request:" + string(data))
+	err = c.container.AddRequestWithCallback(&request, c.Handler)
 	if err != nil {
 		return err
 	}
-	err = c.conn.WriteMessage(websocket.TextMessage, data)
+	//c.mutex.Lock()
+	err = c.Conn.WriteMessage(websocket.TextMessage, data)
+	//c.mutex.Unlock()
 	if err != nil {
 		err := c.container.CancelRequest(id)
 		if err != nil {
@@ -282,7 +284,7 @@ func (c *MsmpClient) SendRequestWithCallback(method string, params interface{}, 
 	if err != nil {
 		return err
 	}
-	err = c.conn.WriteMessage(websocket.TextMessage, data)
+	err = c.Conn.WriteMessage(websocket.TextMessage, data)
 	if err != nil {
 		err := c.container.CancelRequest(id)
 		if err != nil {
@@ -313,7 +315,7 @@ func (c *MsmpClient) SendNotification(method string, params interface{}) error {
 		return fmt.Errorf("failed to marshal notification: %v", err)
 	}
 
-	err = c.conn.WriteMessage(websocket.TextMessage, data)
+	err = c.Conn.WriteMessage(websocket.TextMessage, data)
 	if err != nil {
 		return fmt.Errorf("failed to send notification: %v", err)
 	}
