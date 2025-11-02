@@ -161,7 +161,10 @@ func (c *MsmpClient) readMessages() {
 			return
 		default:
 			// 设置读取超时
-			c.Conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+			err := c.Conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+			if err != nil {
+				continue
+			}
 
 			_, message, err := c.Conn.ReadMessage()
 			if err != nil {
