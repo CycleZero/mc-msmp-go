@@ -241,7 +241,7 @@ func (c *MsmpClient) SendRequest(method string, params interface{}) error {
 		return fmt.Errorf("failed to marshal request: %v", err)
 	}
 	//fmt.Println("Send Request:" + string(data))
-	err = c.container.AddRequestWithCallback(&request, c.Handler)
+	err = c.container.AddRequestWithHandler(&request, c.Handler)
 	if err != nil {
 		return err
 	}
@@ -280,7 +280,7 @@ func (c *MsmpClient) SendRequestWithCallback(method string, params interface{}, 
 	if err != nil {
 		return fmt.Errorf("failed to marshal request: %v", err)
 	}
-	err = c.container.AddRequestWithCallback(&request, callback)
+	err = c.container.AddRequestWithHandler(&request, callback)
 	if err != nil {
 		return err
 	}

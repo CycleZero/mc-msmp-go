@@ -18,10 +18,24 @@ func NewMapMessageContainer() *MapMessageContainer {
 		ReadyMap:   make(map[int]*dto.MessagePair),
 	}
 }
+func (m *MapMessageContainer) NewResponse(r dto.MsmpResponse) (*dto.MessagePair, error) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	v, e := m.WaitingMap[r.GetID()]
+	if !e {
+		return nil, errors.New("no waiting request")
+	}
+	v.Response = r
+	delete(m.WaitingMap, r.GetID())
+	return v, nil
+
+}
 
 func (m *MapMessageContainer) AddRequest(request *dto.MsmpRequest) error {
 	id := request.ID
+	m.mutex.RLock()
 	_, exists := m.WaitingMap[id]
+	m.mutex.RUnlock()
 	if exists {
 		return errors.New("duplicate request")
 	}
@@ -35,6 +49,7 @@ func (m *MapMessageContainer) AddRequest(request *dto.MsmpRequest) error {
 	return nil
 }
 
+// AddResponse Deprecated
 func (m *MapMessageContainer) AddResponse(response dto.MsmpResponse) error {
 	m.mutex.Lock()
 	v, exists := m.WaitingMap[response.GetID()]
@@ -51,6 +66,7 @@ func (m *MapMessageContainer) AddResponse(response dto.MsmpResponse) error {
 	return nil
 }
 
+// Deprecated
 func (m *MapMessageContainer) GetResponse(id int) (dto.MsmpResponse, error) {
 
 	v, e := m.ReadyMap[id]
@@ -62,6 +78,8 @@ func (m *MapMessageContainer) GetResponse(id int) (dto.MsmpResponse, error) {
 }
 
 func (m *MapMessageContainer) GetRequest(id int) (*dto.MsmpRequest, error) {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
 	v, e := m.WaitingMap[id]
 	if !e {
 		v, er := m.ReadyMap[id]
@@ -73,7 +91,10 @@ func (m *MapMessageContainer) GetRequest(id int) (*dto.MsmpRequest, error) {
 	return v.Request, nil
 }
 
+// Deprecated
 func (m *MapMessageContainer) GetResult(id int) (*dto.MessagePair, error) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
 	v, e := m.ReadyMap[id]
 	if !e {
 		return nil, errors.New("no response")
@@ -84,6 +105,8 @@ func (m *MapMessageContainer) GetResult(id int) (*dto.MessagePair, error) {
 
 func (m *MapMessageContainer) GetWaitingRequests() ([]*dto.MessagePair, error) {
 	list := []*dto.MessagePair{}
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
 	for _, v := range m.WaitingMap {
 		list = append(list, v)
 	}
@@ -95,12 +118,17 @@ func (m *MapMessageContainer) GetWaitingNum() (int, error) {
 	//for range m.WaitingMap {
 	//	num++
 	//}
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+
 	num := len(m.WaitingMap)
 
 	return num, nil
 }
 
 func (m *MapMessageContainer) CancelRequest(id int) error {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
 	_, exists := m.WaitingMap[id]
 	if !exists {
 		return errors.New("no waiting request")
@@ -109,7 +137,7 @@ func (m *MapMessageContainer) CancelRequest(id int) error {
 	return nil
 }
 
-func (m *MapMessageContainer) AddRequestWithCallback(request *dto.MsmpRequest, callback func(*dto.MsmpRequest, dto.MsmpResponse)) error {
+func (m *MapMessageContainer) AddRequestWithHandler(request *dto.MsmpRequest, callback func(*dto.MsmpRequest, dto.MsmpResponse)) error {
 	id := request.ID
 	m.mutex.Lock()
 	_, exists := m.WaitingMap[id]
