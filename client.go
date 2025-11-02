@@ -184,11 +184,13 @@ func (c *MsmpClient) readMessages() {
 			}
 
 			// 检查是否有等待此响应的请求
-			err = c.container.AddResponse(response)
+			p, err := c.container.NewResponse(response)
 			if err != nil {
-				log.Printf("Error adding response: %v", err)
+				log.Printf("Error parsing response: %v", err)
 				continue
 			}
+			go p.Callback(p.Request, p.Response)
+
 		}
 	}
 }
